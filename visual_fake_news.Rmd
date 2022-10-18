@@ -1,0 +1,287 @@
+---
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Probability and Statistics
+
+# - Naive Bayes Classifier -
+
+### *Andrii Namasnyi, Anastasiia Senyk, Fedir Zhurba*
+
+## Introduction
+
+During the past three weeks, you learned a couple of essential notions
+and theorems, and one of the most important among them is the *Bayes
+theorem*.
+
+One of its applications is **Naive Bayes classifier**, which is a
+probabilistic classifier whose aim is to determine which class some
+observation probably belongs to by using the Bayes formula:
+$$\mathsf{P}(\mathrm{class}\mid \mathrm{observation})=\frac{\mathsf{P}(\mathrm{observation}\mid\mathrm{class})\mathsf{P}(\mathrm{class})}{\mathsf{P}(\mathrm{observation})}$$
+
+Under the strong independence assumption, one can calculate
+$\mathsf{P}(\mathrm{observation} \mid \mathrm{class})$ as
+$$\mathsf{P}(\mathrm{observation}) = \prod_{i=1}^{n} \mathsf{P}(\mathrm{feature}_i), \qquad \mathsf{P}(\mathrm{observation} \mid \mathrm{class}) = \prod_{i=1}^{n} \mathsf{P}(\mathrm{feature}_i \mid \mathrm{class}),$$
+where $n$ is the total number of features describing a given
+observation. Thus, $\mathsf{P}(\mathrm{class}|\mathrm{observation})$ now
+can be calculated as
+
+$$\mathsf{P}(\mathrm{class} \mid \mathrm{\mathrm{observation}}) = \mathsf{P}(\mathrm{class})\times \prod_{i=1}^{n}\frac{\mathsf{P}(\mathrm{feature}_i\mid \mathrm{class})}{\mathsf{P}(\mathrm{feature}_i)}\tag{1}$$
+
+All the terms on the right-hand side can be estimated from the data as
+respective relative frequencies;\
+see [this
+site](https://monkeylearn.com/blog/practical-explanation-naive-bayes-classifier/)
+for more detailed explanations.
+
+## Data description
+
+There is a dataset.
+
+-   **fake news** This data set contains data of American news: a
+    headline and an abstract of the article. Each piece of news is
+    classified as fake or credible. The task is to classify the news
+    from test.csv as credible or fake.
+
+The data set consists of two files: *train.csv* and *test.csv*. The
+first one we need to find the probabilities distributions for each of
+the features, while the second one is needed for checking how well your
+classifier works.
+
+```{r}
+# here goes a list of recommended libraries,
+# though you may install other ones if they are needed
+library(tidytext)
+library(readr)
+library(ggplot2)
+library(tokenizers)
+```
+
+### Data pre-processing
+
+-   Read the *.csv* data files.
+-   Сlear your data from punctuation or other unneeded symbols.
+-   Clear you data from stop words. You don't want words as is, and, or
+    etc. to affect your probabilities distributions, so it is a wise
+    decision to get rid of them. Find list of stop words in the cms
+    under the lab task.
+-   Represent each test message as its bag-of-words.
+
+## Classifier implementation
+
+```{r}
+naiveBayes <- setRefClass("naiveBayes",
+                          
+                          # here it would be wise to have some vars to store intermediate result
+                          # frequency dict etc. Though pay attention to bag of wards! 
+                          fields = list(
+                            credible_probs = "table",
+                            fake_probs = "table",
+                            credible_news = "data.frame",
+                            fake_news = "data.frame",
+                            p_credible = "table",
+                            p_fake = "table"
+                            
+                          ),
+                          
+                          
+                          
+                          
+                          methods = list(
+        
+                            tokens_conditional_prob = function(tokens) {
+                              occurrences <- table(unlist(tokens)) + 1
+                              return (occurrences / sum(occurrences))
+                            },
+                            
+                            
+                            
+                            
+                            # prepare your training data as X - bag of words for each of your
+                            # messages and corresponding label for the message encoded as 0 or 1 
+                            # (binary classification task)
+                            fit_data = function(dataf, splitted_stop_words)
+                            {
+                              dataf$text <- paste(dataf$Headline,dataf$Body, sep = " ")
+                              dataf$text <- tokenize_words(dataf$text, lowercase = TRUE, strip_numeric = TRUE, strip_punct = TRUE, stopwords = splitted_stop_words)
+                              
+                              
+                              credible_news <<- subset(dataf, Label == 'credible')
+                              fake_news <<- subset(dataf, Label == 'fake')
+                              
+                              credible_probs <<- tokens_conditional_prob(credible_news$text)
+                              fake_probs <<- tokens_conditional_prob(fake_news$text)
+                       
+                              
+                              p_credible <<- table(credible_news$Label) / sum(table(dataf$Label))
+                              p_fake <<- table(fake_news$Label) / sum(table(dataf$Label))
+ 
+                              return (dataf)
+                            },
+                           
+                            
+                            
+                            
+                            fit_test = function(dataf, splitted_stop_words)
+                            {
+                              dataf$text <- paste(dataf$Headline, dataf$Body, sep = " ")
+                              dataf$text <- tokenize_words(dataf$text, lowercase = TRUE, strip_numeric = TRUE, strip_punct = TRUE, stopwords = splitted_stop_words)
+                              
+                              return (dataf)
+                              
+                            },
+                            
+                            
+                            
+                            
+                            # return prediction for a single message 
+                            predict_for_dataf = function(dataf)
+                            {
+                              
+                              
+                              dataf$res <- NA
+                              index = 1
+                              
+                              for (news in dataf$text) {
+                                dataf[index, 6] = predict(news)
+                                index = index + 1
+                              }
+                              
+                              dataf <- dataf[c('Headline', 'Body', 'Label', 'res')]
+                              return (dataf)
+                              
+                            },
+                            
+                            
+                            
+                            
+                            predict = function(news)
+                            {
+                              credible_guess = p_credible
+                              fake_guess = p_fake
+                              res = 1
+                              
+                              for (word in unlist(news)) {
+                                credible_word <- credible_probs[word]
+                                fake_word <- fake_probs[word]
+                                
+
+                                
+                                if (!is.na(credible_probs[word]) & !is.na(fake_probs[word])) {
+                                  credible_guess = (credible_probs[word] * p_credible) / (credible_probs[word] * p_credible + fake_probs[word] * p_fake)
+                                }
+
+                                if (!is.na(fake_probs[word]) & !is.na(credible_probs[word])) {
+                                  fake_guess = (fake_probs[word] * p_fake) / (credible_probs[word] * p_credible + fake_probs[word] * p_fake)
+                                }
+                                
+                                
+                                res = res * (credible_guess / fake_guess)
+                              }
+                              
+                              if (res > 1) {
+                                return ('credible')
+                              }
+                              return ('fake')
+                              },
+                            
+                            
+                            
+                            
+                            
+                            # score you test set so to get the understanding how well you model
+                            # works.
+                            # look at f1 score or precision and recall
+                            # visualize them 
+                            # try how well your model generalizes to real world data! 
+                            score = function(test)
+                            {
+                              tp = sum(table(which(test$Label == 'credible' & test$res == 'credible')))
+                              fp = sum(table(which(test$Label == 'fake' & test$res == 'credible')))
+                              fn = sum(table(which(test$Label == 'credible' & test$res == 'fake')))
+                              precision = tp / (tp + fp)
+                              
+                              recall = tp / (tp + fn)
+                              
+                              f1score = 2 * (precision * recall) / (recall + precision)
+                              
+                              return (f1score)
+                            }
+                          )
+)
+```
+
+### Main function
+
+To get the result, we use the Naive Bayes Classifier. To implement it,
+we parse our messages into words and then calculate a conditional
+probability of each word appearing in credible and fake news separately.
+Then we use Bayes' theorem to calculate the conditional probability that
+news is credible given words in the header and body.
+
+```{r}
+main_f <- function(test_path, train_path, stop_words_path){
+
+  test <- read.csv(test_path, stringsAsFactors = FALSE)
+  data <- read.csv(train_path, stringsAsFactors = FALSE)
+  stop_words <- read_file(stop_words_path)
+  splitted_stop_words <- strsplit(stop_words, split='\n')[[1]]
+
+  
+  model = naiveBayes()
+  data <- model$fit_data(data, splitted_stop_words)
+  test <- model$fit_test(test, splitted_stop_words)
+
+  test <- model$predict_for_dataf(test);
+  
+  print('score - >')
+  print(model$score(test))
+
+  return (test)
+}
+
+```
+
+------------------------------------------------------------------------
+
+```{r}
+stop_words_path <- "/Users/anastasiaa/Documents/UCU/P_S/Lab1/stop_words.txt"
+test_path <- "/Users/anastasiaa/Documents/UCU/P_S/Lab1/data/2-fake_news/test.csv"
+train_path <- "/Users/anastasiaa/Documents/UCU/P_S/Lab1/data/2-fake_news/train.csv"
+
+test <- main_f(test_path, train_path, stop_words_path)
+```
+
+### Data visualization
+
+Each time you work with some data, you need to understand it before you
+start processing it. R has very powerful tools to make nice plots and
+visualization. Show what are the most common words for negative and
+positive examples as a histogram, word cloud etc. Be creative!
+
+## Measure effectiveness of your classifier
+
+-   Note that accuracy is not always a good metric for your classifier.
+    Look at precision and recall curves, F1 score metric.
+-   Visualize them.
+-   Show failure cases.
+
+## Conclusions
+
+### Pros and Cons
+
+The main advantage of this approach is its high efficiency and speed. It
+is also quite understandable and intuitive. Also, it is quite easy to
+train. But this method has huge disadvantages, it is built in "perfect
+world" conditions. So, if we work with real data, we face that data is
+somehow biased and variables are not fully independent. However, this
+method remains quite accurate. Also, this method does not take into
+account the order of words. However, it can be really valuable for our
+data. What is more, we assume that the header and body have the same
+value, but in fact header or body can be more important in our model.
