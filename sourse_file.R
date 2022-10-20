@@ -168,9 +168,9 @@ naiveBayes <- setRefClass("naiveBayes",
                             # try how well your model generalizes to real world data! 
                             score = function(dataf)
                             {
-                              tp = sum(table(which(test$Label == 'credible' & test$res == 'credible')))
-                              fp = sum(table(which(test$Label == 'fake' & test$res == 'credible')))
-                              fn = sum(table(which(test$Label == 'credible' & test$res == 'fake')))
+                              tp = sum(table(which(dataf$Label == 'credible' & dataf$res == 'credible')))
+                              fp = sum(table(which(dataf$Label == 'fake' & dataf$res == 'credible')))
+                              fn = sum(table(which(dataf$Label == 'credible' & dataf$res == 'fake')))
                               precision = tp / (tp + fp)
 
                               recall = tp / (tp + fn)
