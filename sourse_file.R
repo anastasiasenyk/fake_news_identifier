@@ -1,7 +1,11 @@
 library(tidytext)
 library(readr)
 library(ggplot2)
+library(dplyr)
 library(tokenizers)
+library(plotrix)
+library(dplyr)
+
 
 
 
@@ -46,7 +50,40 @@ naiveBayes <- setRefClass("naiveBayes",
                               
                               credible_probs <<- tokens_conditional_prob(credible_news$text)
                               fake_probs <<- tokens_conditional_prob(fake_news$text)
-                       
+                              
+                              truth_rate <<- credible_probs %>%
+                                as.data.frame() %>% 
+                                arrange(desc(Freq))
+                              
+                              fake_rate <<- fake_probs %>%
+                                as.data.frame() %>% 
+                                arrange(desc(Freq))
+                              
+                              truth_top <<- truth_rate[1:5, ]
+
+                              truth_top$Fake <<- c(0, 0, 0, 0, 0)
+                              
+                              for (j in 1:5){
+                                for (i in 1:nrow(fake_rate)){
+                                  if (fake_rate[i,1] == truth_top[j,1]){
+                                    truth_top[j, 3] <<- fake_rate[i,2]
+                                  }
+                                }
+                              }
+                              
+
+                              popular <- as.matrix(data.frame(will = c(truth_top[1, 2], truth_top[1, 3]),
+                                                           can = c(truth_top[2, 2], truth_top[2, 3]),
+                                                           one = c(truth_rate[3, 2], truth_top[3, 3]),
+                                                           game = c(truth_top[4, 2], truth_top[4, 3]),
+                                                           news = c(truth_rate[5, 2], truth_top[5, 3])))
+                              
+                              barplot(popular, main = "Probability of top-words",
+                                      col = c("green", "red"),
+                                      beside = TRUE)
+                              legend("topright",
+                                legend = c("Credible", "Fake"),
+                                     fill = c("green", "red"))
                               
                               p_credible <<- table(credible_news$Label) / sum(table(dataf$Label))
                               p_fake <<- table(fake_news$Label) / sum(table(dataf$Label))
@@ -133,16 +170,29 @@ naiveBayes <- setRefClass("naiveBayes",
                             {
                               a = table(dataf$res==dataf$Label)["TRUE"]
                               b = nrow(dataf)
-                              return (100*a/b)
+                              return (a/b)*100
+                            },
+                            score_visual = function(dataf)
+                            {
+                                true_positive = table(dataf$res=="credible" & dataf$Label=="credible")["TRUE"]
+                                true_negative = table(dataf$res=="fake" & dataf$Label=="fake")["TRUE"]
+                                false_negative = table(dataf$res=="fake" & dataf$Label=="credible")["TRUE"]
+                                false_positive = table(dataf$res=="credible" & dataf$Label=="fake")["TRUE"]
+                                slices <- c(true_positive, true_negative, false_positive, false_negative)
+                                lbls <- c("True Positive", "True Negative", "False Positive", "False Negative")
+                                pct <- round(slices/sum(slices)*100)
+                                lbls <- paste(lbls, pct)
+                                lbls <- paste(lbls,"%",sep="")
+                                pie(slices, labels = lbls, col=rainbow(length(lbls)), main="Prediction accuracy")
                             }
                           )
                           )
 
 
 
-stop_words_path <- "/Users/anastasiaa/Documents/UCU/P_S/Lab1/stop_words.txt"
-test_path <- "/Users/anastasiaa/Documents/UCU/P_S/Lab1/data/2-fake_news/test.csv"
-train_path <- "/Users/anastasiaa/Documents/UCU/P_S/Lab1/data/2-fake_news/train.csv"
+stop_words_path <- "/home/fazhur/R_Projects/Lab1/stop_words.txt"
+test_path <- "/home/fazhur/R_Projects/Lab1/2-fake_news/test.csv"
+train_path <- "/home/fazhur/R_Projects/Lab1/2-fake_news/train.csv"
 
 
 
@@ -162,6 +212,7 @@ main_f <- function(test_path, train_path, stop_words_path){
   
   print('score - >')
   print(model$score(test))
+  print(model$score_visual(test))
 
   return (test)
 }
@@ -169,12 +220,6 @@ main_f <- function(test_path, train_path, stop_words_path){
 
 
 test <- main_f(test_path, train_path, stop_words_path)
-
-
-
-
-
-
 
 
 
