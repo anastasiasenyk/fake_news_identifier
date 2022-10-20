@@ -177,7 +177,7 @@ naiveBayes <- setRefClass("naiveBayes",
 
                               f1score = 2 * (precision * recall) / (recall + precision)
                               
-                              return f1score
+                              return (f1score)
                             },
                             score_visual = function(dataf)
                             {
